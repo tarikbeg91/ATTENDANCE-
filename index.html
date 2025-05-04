@@ -1085,9 +1085,11 @@
 
              } else if (!previousMonthKeyForRender) {
                   console.log(`This is the first month or no previous month key exists. Starting with 0 carried over balance automatically on render.`);
-                  // Ensure carriedOverBalance is 0 for the first month if it somehow wasn't initialized correctly
-                   userData.months[month].carriedOverBalance = 0;
-                   // No need to save if it was already 0 or wasn't the first month
+                   // Ensure carriedOverBalance is 0 for the first month if it somehow wasn't initialized correctly
+                   if (userData.months[month].carriedOverBalance !== 0) {
+                       userData.months[month].carriedOverBalance = 0;
+                       saveData(); // Save 0 explicitly
+                   }
              } else if (userData.months[month] && userData.months[month].carriedOverBalance !== 0 && userData.months[month].carriedOverBalance !== undefined) {
                   console.log(`Month ${month} for user ${currentUser} already has a non-zero carried over balance (${userData.months[month].carriedOverBalance}). Skipping automatic carry-over on render.`);
              } else if (!userData.months[previousMonthKeyForRender] || typeof userData.months[previousMonthKeyForRender] !== 'object' || !Array.isArray(userData.months[previousMonthKeyForRender].days) || userData.months[previousMonthKeyForRender].days.length === 0) {
@@ -1663,8 +1665,8 @@
                 const footerText = `Report for ${currentUser} (${currentlyViewedMonth}${reportPeriodText}) - Generated on ${formattedDateTime}\nFinal Balance Due: ${finalBalanceForReport.toFixed(2)}`;
                 footerDiv.textContent = footerText;
 
-                // Increased delay slightly for footer to render
-                 await new Promise(resolve => setTimeout(resolve, 100));
+                // Increased delay slightly for footer to render - INCREASED HERE
+                 await new Promise(resolve => setTimeout(resolve, 300)); // <-- Delay increased to 300ms
             }
             // --- End Add Footer Text ---
 
