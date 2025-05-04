@@ -301,7 +301,7 @@
              padding: 10px; /* Add some padding */
              padding-bottom: 30px; /* Added padding at the bottom for footer space */
              border: 1px solid #ddd; /* Add border */
-             border-radius: 5px; /* Add rounded corners */
+             border-radius: 5 blushing pink5px; /* Add rounded corners */
              position: relative; /* Needed for potential absolute positioning of footer if needed, though not used here */
          }
           #reportArea #tableContainer {
@@ -1606,17 +1606,17 @@
         async function shareReport() {
             const reportArea = document.getElementById('reportArea');
             const summaryDiv = document.getElementById('summarySection');
-            const footerDiv = document.getElementById('reportFooter');
-             const paymentsSection = document.getElementById('previousBalancePaymentsSection'); // Get payments section
-            const table = document.querySelector('#tableContainer table'); // Get the table element
-            const tbodyRows = table ? table.querySelectorAll('tbody tr') : []; // Get all rows in tbody
+            const footerDiv = document.getElementById('reportFooter'); // Original footer div
+            const paymentsSection = document.getElementById('previousBalancePaymentsSection');
+            const table = document.querySelector('#tableContainer table');
+            const tbodyRows = table ? table.querySelectorAll('tbody tr') : [];
 
 
             if (!summaryDiv || !summaryDiv.innerText || summaryDiv.innerText.trim() === "" || summaryDiv.innerText.includes("Please select a user")) {
                 alert("Please generate a report first by clicking one of the 'View Report' buttons.");
                 return;
             }
-            if (!currentUser || !currentlyViewedMonth || !table) { // Check if table exists
+            if (!currentUser || !currentlyViewedMonth || !table) {
                  alert("Cannot generate report image without a selected user, month, or table data.");
                  return;
             }
@@ -1652,7 +1652,7 @@
                     }
                 });
                  // Add a small delay to allow display changes to render
-                 await new Promise(resolve => setTimeout(resolve, 50));
+                 await new Promise(resolve => setTimeout(resolve, 50)); // Delay for row hiding
             }
             // --- End Determine which rows to hide ---
 
@@ -1680,8 +1680,10 @@
                 tableWrapper.style.overflowX = 'hidden';
             }
 
-            // --- Add Footer Text BEFORE capturing ---
-            if (footerDiv) {
+            // --- Create and Append Temporary Footer Content BEFORE capturing ---
+            let tempFooterElement = null;
+            // Check if the original footer div exists before attempting to add content
+            if (footerDiv) { // Add this check
                  const now = new Date();
                  const formatter = new Intl.DateTimeFormat(navigator.language, {
                       year: 'numeric',
@@ -1698,15 +1700,35 @@
                  else if(activeReportType === 'afterFifteenth') reportPeriodText = ' (After 15th)';
                  else reportPeriodText = ' (Full Month)';
 
+                const footerTextLine1 = `Report for ${currentUser} (${currentlyViewedMonth}${reportPeriodText}) - Generated on ${formattedDateTime}`;
+                const footerTextLine2 = `Final Balance Due: ${finalBalanceForReport.toFixed(2)}`;
 
-                // Add the final balance to the footer text on a new line
-                const footerText = `Report for ${currentUser} (${currentlyViewedMonth}${reportPeriodText}) - Generated on ${formattedDateTime}\nFinal Balance Due: ${finalBalanceForReport.toFixed(2)}`;
-                footerDiv.textContent = footerText;
 
-                // Increased delay slightly for footer to render - INCREASED HERE
-                 await new Promise(resolve => setTimeout(resolve, 500)); // <-- Delay increased to 500ms
+                // Create a temporary element to hold the footer text
+                tempFooterElement = document.createElement('div');
+                 // Copy relevant styles from the original footer div's computed styles
+                 const computedFooterStyles = getComputedStyle(footerDiv);
+                 tempFooterElement.style.fontSize = computedFooterStyles.fontSize;
+                 tempFooterElement.style.color = computedFooterStyles.color;
+                 tempFooterElement.style.textAlign = computedFooterStyles.textAlign;
+                 tempFooterElement.style.marginTop = computedFooterStyles.marginTop;
+                 tempFooterElement.style.paddingTop = computedFooterStyles.paddingTop;
+                 tempFooterElement.style.borderTop = computedFooterStyles.borderTop;
+                 tempFooterElement.style.width = computedFooterStyles.width;
+                 tempFooterElement.style.boxSizing = computedFooterStyles.boxSizing; // Ensure box-sizing is copied
+                 tempFooterElement.style.display = 'block'; // Ensure it's a block element
+
+
+                // Add the two lines of text inside the temporary element
+                tempFooterElement.innerHTML = `${footerTextLine1}<br>${footerTextLine2}`;
+
+                 // Append the temporary element directly to reportArea
+                reportArea.appendChild(tempFooterElement);
+
+                 // Increased delay further for Chrome footer issue - INCREASED HERE
+                 await new Promise(resolve => setTimeout(resolve, 1000)); // <-- Delay increased to 1000ms (1 second)
             }
-            // --- End Add Footer Text ---
+            // --- End Create and Append Temporary Footer Content ---
 
              let canvas = null;
 
@@ -1720,9 +1742,15 @@
 
                 canvas.toBlob(async function(blob) {
                     // --- Restore hidden elements and scrollbar AFTER blob is created ---
-                    if (footerDiv) {
-                        footerDiv.textContent = ''; // Clear the entire footer
+                    // Remove the temporary footer element
+                    if (tempFooterElement && tempFooterElement.parentElement === reportArea) {
+                        reportArea.removeChild(tempFooterElement);
                     }
+                    // Clear the original footer div's text content (should be empty anyway, but good practice)
+                    if (footerDiv) {
+                         footerDiv.textContent = '';
+                    }
+
                     if (addPaymentForm && originalAddPaymentFormDisplay !== null) {
                          addPaymentForm.style.display = originalAddPaymentFormDisplay;
                     }
@@ -1773,7 +1801,13 @@
                 }, 'image/png', 0.9);
 
             } catch (error) {
-                 // Restore hidden elements, scrollbar, and table rows in case of error
+                 // Restore hidden elements, scrollbar, and table rows, and remove temp footer in case of error
+                 if (tempFooterElement && tempFooterElement.parentElement === reportArea) {
+                     reportArea.removeChild(tempFooterElement);
+                 }
+                 if (footerDiv) {
+                     footerDiv.textContent = ''; // Clear the original footer
+                 }
                  if (addPaymentForm && originalAddPaymentFormDisplay !== null) {
                      addPaymentForm.style.display = originalAddPaymentFormDisplay;
                  }
@@ -1782,9 +1816,6 @@
                   });
                  if(tableWrapper && originalOverflowX !== null) {
                      tableWrapper.style.overflowX = originalOverflowX;
-                 }
-                 if (footerDiv) {
-                     footerDiv.textContent = ''; // Clear the entire footer
                  }
                   hiddenRows.forEach(row => {
                      row.style.display = ''; // Show the row again
