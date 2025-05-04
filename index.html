@@ -322,6 +322,26 @@
             visibility: visible; /* Ensure visibility */
         }
 
+         /* Add styles for the current day row */
+         .current-day-row td {
+             background-color: #ffffcc; /* Light yellow background for table cells in current day row */
+             /* You can add other styles like border etc. */
+         }
+         /* Also style inputs within this row if needed */
+         .current-day-row td input {
+             background-color: #ffffcc; /* Ensure input background matches cell */
+         }
+
+         /* Add styles for the Edited TD to limit lines */
+         td:nth-child(9) {
+             width: 90px; /* Ensure width is set for consistent wrapping */
+             line-height: 18px; /* Set a fixed line height - Adjust this value if needed */
+             max-height: 36px; /* Allow max 2 lines (line-height * 2) - Adjust this value if needed */
+             overflow: hidden; /* Hide content exceeding max height */
+             /* Note: This will cut off text if it exceeds two lines */
+             /* If you want '...' at the end, you would need a more complex approach with -webkit-line-clamp */
+         }
+
 
     </style>
 </head>
@@ -444,7 +464,9 @@
 
                                              // Ensure the new fields exist on the object if they were missing
                                              if (!Object.prototype.hasOwnProperty.call(monthEntry, 'carriedOverBalance')) monthEntry.carriedOverBalance = carriedOverBalance;
-                                             if (!Object.prototype.hasOwnProperty.call(monthEntry, 'previousBalancePayments')) monthEntry.previousBalancePayments = previousBalancePayments;
+                                             if (!Object.prototype.hasOwnProperty.call(monthEntry, 'previousBalancePayments')) previousBalancePayments = []; // Fixed: should re-initialize previousBalancePayments if missing
+                                             data[userName].months[monthKey].previousBalancePayments = previousBalancePayments;
+
 
                                         } else {
                                             console.error(`Skipping invalid month data format for ${monthKey} for user ${userName}:`, monthEntry);
@@ -948,6 +970,14 @@
          }
         // --- END Helper Function ---
 
+         // Helper function to get current date in D/M/YYYY or DD/MM/YYYY format matching table
+         function getCurrentDateString() {
+             const now = new Date();
+             const day = now.getDate();
+             const month = now.getMonth() + 1; // Month is 0-indexed
+             const year = now.getFullYear();
+             return `${day}/${month}/${year}`;
+         }
 
         // --- Modified renderTable to accept monthKey, handle new data structure, and auto-carry-over ---
         function renderTable(monthKey = currentlyViewedMonth) {
@@ -1104,6 +1134,10 @@
             const days = userData.months[month].days; // Get the days array from the new structure
              const displayedDays = days.slice(0, daysInMonth);
 
+            // Get current date string once
+            const todayDateString = getCurrentDateString();
+
+
             let html = `
                 <div class="table-responsive"> <table>
                 <thead>
@@ -1124,6 +1158,11 @@
             displayedDays.forEach((day, i) => {
                  const currentDay = day && typeof day === 'object' ? day : { date: `${i+1}/${monthIndex + 1}/${year}`, status: '', overtime: 0, rent: 0, food: 0, received: 0, location: "", notes: "", updated: "" };
 
+                // Determine if the current row's date matches today's date
+                 const isCurrentDayRow = currentDay.date === todayDateString;
+                 const rowClass = isCurrentDayRow ? 'current-day-row' : ''; // Add class if it's today
+
+
                 // Determine if fields should be disabled based on existing data
                 // Fields are disabled if they have a non-empty string (for text) or a non-zero number
                 const isStatusFilled = currentDay.status && currentDay.status.trim() !== '';
@@ -1136,8 +1175,7 @@
 
 
                 html += `
-                <tr>
-                    <td>${currentDay.date}</td>
+                <tr class="${rowClass}"> <td>${currentDay.date}</td>
                     <td><input type="text" data-month="${month}" data-index="${i}" data-field="status" value="${currentDay.status || ''}" ${isStatusFilled ? 'disabled' : ''}></td>
                     <td><input type="number" data-month="${month}" data-index="${i}" data-field="overtime" value="${currentDay.overtime == 0 ? '' : currentDay.overtime}" ${isOvertimeFilled ? 'disabled' : ''}></td>
                     <td><input type="number" data-month="${month}" data-index="${i}" data-field="rent" value="${currentDay.rent == 0 ? '' : currentDay.rent}" ${isRentFilled ? 'disabled' : ''}></td>
@@ -1666,7 +1704,7 @@
                 footerDiv.textContent = footerText;
 
                 // Increased delay slightly for footer to render - INCREASED HERE
-                 await new Promise(resolve => setTimeout(resolve, 300)); // <-- Delay increased to 300ms
+                 await new Promise(resolve => setTimeout(resolve, 500)); // <-- Delay increased to 500ms
             }
             // --- End Add Footer Text ---
 
