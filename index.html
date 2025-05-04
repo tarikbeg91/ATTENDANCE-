@@ -301,7 +301,7 @@
              padding: 10px; /* Add some padding */
              padding-bottom: 30px; /* Added padding at the bottom for footer space */
              border: 1px solid #ddd; /* Add border */
-             border-radius: 5 blushing pink5px; /* Add rounded corners */
+             border-radius: 5px; /* Add rounded corners */
              position: relative; /* Needed for potential absolute positioning of footer if needed, though not used here */
          }
           #reportArea #tableContainer {
@@ -1347,4 +1347,504 @@
                            if (typeof savedValue === 'number' && savedValue === 0) {
                                inputElement.value = ''; // Show empty for 0
                            } else if (typeof savedValue === 'string') {
-                                input
+                                inputElement.value = savedValue.trim(); // Restore trimmed saved value
+                           }
+                           else {
+                                inputElement.value = savedValue; // Restore saved value
+                           }
+                           inputElement.disabled = false; // Ensure it's not disabled if value didn't change
+                      }
+                 }
+
+
+            } else {
+                 console.error(`Error: Field "${field}" does not exist on day object for update.`);
+                  // Restore input value if field doesn't exist
+                  if (inputElement) {
+                      if (typeof value === 'number' && value === 0) {
+                         inputElement.value = ''; // Show empty for 0
+                      } else {
+                         inputElement.value = value; // Restore attempted value
+                      }
+                      inputElement.disabled = false; // Ensure it's not disabled if update failed
+                  }
+            }
+        }
+
+
+        // --- showSummary function (uses carriedOverBalance, sums previousBalancePayments) ---
+        function showSummary(calcType) {
+            const summary = document.getElementById("summarySection");
+            if (!currentUser || !data[currentUser] || !currentlyViewedMonth) {
+                summary.innerHTML = "<p>Please select a user and a month first.</p>";
+                 const footerDiv = document.getElementById('reportFooter');
+                 if(footerDiv) footerDiv.textContent = '';
+                 activeReportType = 'fullMonth'; // Reset if no user/month
+                 finalBalanceForReport = 0; // Reset final balance
+                return;
+            }
+
+            const userData = data[currentUser];
+            const currentMonthKey = currentlyViewedMonth;
+            const rate = Number(userData.rate) || 0;
+             const overtimeHoursPerDay = 8;
+
+             // Ensure current month data exists and is in the new object structure
+             const currentMonthData = userData.months[currentMonthKey];
+             if (!currentMonthData || typeof currentMonthData !== 'object' || !Array.isArray(currentMonthData.days) || !Array.isArray(currentMonthData.previousBalancePayments)) {
+                  summary.innerHTML = `<p>No or invalid data structure available for ${currentMonthKey}.</p>`;
+                  const footerDiv = document.getElementById('reportFooter');
+                  if(footerDiv) footerDiv.textContent = '';
+                  activeReportType = 'fullMonth'; // Reset if data is invalid
+                  finalBalanceForReport = 0; // Reset final balance
+                  return;
+             }
+
+            // --- START: Logic to Calculate and Update Carried Over Balance from Previous Month ---
+            // This runs whenever a report is generated, ensuring the carried-over balance is fresh.
+             const previousMonthKeyForCarryOver = getRelativeMonthKey(currentMonthKey, -1);
+
+              // Check if it's not the very first month (previousMonthKeyForCarryOver is valid)
+             // AND the previous month actually has data structure (to calculate its balance from)
+             if (previousMonthKeyForCarryOver && userData.months[previousMonthKeyForCarryOver] && typeof userData.months[previousMonthKeyForCarryOver] === 'object') {
+
+                  console.log(`Recalculating carried over balance for ${currentMonthKey} from previous month (${previousMonthKeyForCarryOver}) before generating report for user ${currentUser}.`);
+
+                 // Get the previous month's data structure for calculation
+                 const prevMonthDataForCalc = userData.months[previousMonthKeyForCarryOver];
+
+                 // Check if previous month has days data (needed for daily totals)
+                 if (Array.isArray(prevMonthDataForCalc.days) && prevMonthDataForCalc.days.length > 0) {
+
+                     // Calculate previous month's totals based *only* on its daily entries (Gross - Daily Received)
+                     const prevMonthDailyTotalsForCalc = calculateFullMonthTotals(currentUser, previousMonthKeyForCarryOver);
+
+                     // Get previous month's Carried Over Balance (the one that was carried INTO the previous month)
+                     const prevMonthCarriedOverForCalc = Number(prevMonthDataForCalc.carriedOverBalance) || 0;
+
+                     // Sum previous month's Payments Received Towards Previous Balance
+                     let prevMonthTotalPrevPaymentsForCalc = 0;
+                     if (Array.isArray(prevMonthDataForCalc.previousBalancePayments)) {
+                          prevMonthDataForCalc.previousBalancePayments.forEach(payment => {
+                               if(payment && typeof payment === 'object') {
+                                   prevMonthTotalPrevPaymentsForCalc += Number(payment.amount) || 0;
+                               }
+                          });
+                     }
+
+                     // Calculate the TRUE Final Balance Due for the previous month
+                     // (Previous Month's Daily Gross) + (Previous Month's Carried-Over INTO IT) - (Previous Month's Daily Received) - (Previous Month's Previous Balance Payments Received)
+                     const truePrevMonthFinalBalanceForCarryOver = prevMonthDailyTotalsForCalc.grossTotal + prevMonthCarriedOverForCalc - prevMonthDailyTotalsForCalc.totalDailyReceived - prevMonthTotalPrevPaymentsForCalc;
+
+                     // Update the current month's carried over balance
+                     const oldCarriedOverBalance = currentMonthData.carriedOverBalance;
+                     const newCarriedOverBalance = parseFloat(truePrevMonthFinalBalanceForCarryOver.toFixed(2));
+
+                      if (oldCarriedOverBalance !== newCarriedOverBalance) {
+                          currentMonthData.carriedOverBalance = newCarriedOverBalance; // Store rounded value
+                          console.log(`Updated carried over balance for ${currentMonthKey} to ${currentMonthData.carriedOverBalance} based on ${previousMonthKeyForCarryOver}'s true final balance.`);
+                          saveData(); // Save after updating the balance
+                      } else {
+                           console.log(`Carried over balance for ${currentMonthKey} (${newCarriedOverBalance}) is already up-to-date based on ${previousMonthKeyForCarryOver}. No save needed.`);
+                      }
+
+
+                 } else {
+                       console.log(`Previous month (${previousMonthKeyForCarryOver}) has no days data. Cannot calculate true final balance for carry over before report.`);
+                        // Ensure carriedOverBalance is 0 for current month if previous data is insufficient
+                        if (currentMonthData.carriedOverBalance !== 0) {
+                             currentMonthData.carriedOverBalance = 0;
+                             saveData(); // Save 0 explicitly
+                        }
+                 }
+
+             } else if (!previousMonthKeyForCarryOver) {
+                  console.log(`This is the first month or no previous month key exists. Ensuring 0 carried over balance for report.`);
+                   // Ensure carriedOverBalance is 0 for the first month if it somehow wasn't initialized correctly
+                   if (currentMonthData.carriedOverBalance !== 0) {
+                       currentMonthData.carriedOverBalance = 0;
+                       saveData(); // Save 0 explicitly
+                   }
+             } else {
+                  console.log(`Previous month (${previousMonthKeyForCarryOver}) data structure invalid. Cannot calculate true final balance for carry over before report.`);
+                   // Ensure carriedOverBalance is 0 for current month if previous data is invalid
+                   if (currentMonthData.carriedOverBalance !== 0) {
+                       currentMonthData.carriedOverBalance = 0;
+                       saveData(); // Save 0 explicitly
+                   }
+             }
+            // --- END: Logic to Calculate and Update Carried Over Balance ---
+
+
+            let daysToReport = [];
+            let summaryTitle = "";
+
+             const currentMonthDaysArray = currentMonthData.days;
+
+             const [year, monthIndex] = currentMonthKey.split('-').map(Number);
+             const totalDaysInCurrentMonth = !isNaN(year) && year >= 1900 && !isNaN(monthIndex) && monthIndex >= 1 && monthIndex <= 12 ? getDaysInMonth(year, monthIndex - 1) : (currentMonthDaysArray.length || 0);
+
+
+            if (calcType === 'fullMonth') {
+                daysToReport = currentMonthDaysArray.slice(0, totalDaysInCurrentMonth);
+                 const dateForTitle = new Date(year, monthIndex - 1, 1);
+                 const monthNameForTitle = dateForTitle.toLocaleString('default', { month: 'long' });
+                summaryTitle = `${totalDaysInCurrentMonth} Days (${monthNameForTitle} ${year}) Report`;
+            } else if (calcType === 'firstHalfCurrent') {
+                daysToReport = currentMonthDaysArray.slice(0, Math.min(15, totalDaysInCurrentMonth));
+                 const dateForTitle = new Date(year, monthIndex - 1, 1);
+                 const monthNameForTitle = dateForTitle.toLocaleString('default', { month: 'long' });
+                summaryTitle = `First ${daysToReport.length} Days of ${monthNameForTitle} ${year} Report`;
+            } else if (calcType === 'afterFifteenth') {
+                daysToReport = currentMonthDaysArray.slice(15, totalDaysInCurrentMonth);
+                 const dateForTitle = new Date(year, monthIndex - 1, 1);
+                 const monthNameForTitle = dateForTitle.toLocaleString('default', { month: 'long' });
+                summaryTitle = `After 15th of ${monthNameForTitle} ${year} Report (${daysToReport.length} Days)`;
+            }
+
+            if (!Array.isArray(daysToReport)) {
+                daysToReport = [];
+                console.warn(`Data slicing for calculation type ${calcType} resulted in non-array data. Using empty array.`);
+            }
+
+            // --- Calculate Totals for the *Current Period's DAILY Entries* ---
+            let currentPeriodTotalPresent = 0;
+            let currentPeriodTotalOvertimeHours = 0;
+            let currentPeriodTotalRent = 0;
+            let currentPeriodTotalFood = 0;
+            let currentPeriodTotalDailyReceived = 0; // Sum of 'received' from daily entries in the period
+
+            daysToReport.forEach(d => {
+                 if (d && typeof d === 'object') {
+                     const status = d.status ? d.status.toUpperCase() : '';
+                     if (status === 'P') currentPeriodTotalPresent += 1;
+                     else if (status === 'H') currentPeriodTotalPresent += 0.5;
+
+                     currentPeriodTotalOvertimeHours += Number(d.overtime) || 0;
+                     currentPeriodTotalRent += Number(d.rent) || 0;
+                     currentPeriodTotalFood += Number(d.food) || 0;
+                     currentPeriodTotalDailyReceived += Number(d.received) || 0;
+                 } else {
+                     console.warn("Skipping invalid day data in current period summary calculation:", d);
+                 }
+            });
+
+             // Calculate Current Period Amounts
+            const currentPeriodHazriTotal = currentPeriodTotalPresent * rate;
+
+            let currentPeriodOvertimeAmount = 0;
+             if (rate > 0 && overtimeHoursPerDay > 0) {
+                 currentPeriodOvertimeAmount = (currentPeriodTotalOvertimeHours * rate) / overtimeHoursPerDay;
+                 currentPeriodOvertimeAmount = parseFloat(currentPeriodOvertimeAmount.toFixed(2));
+            }
+
+            const currentPeriodGrossTotal = currentPeriodHazriTotal + currentPeriodOvertimeAmount + currentPeriodTotalRent + currentPeriodTotalFood;
+            // --- End Current Period DAILY Calculation ---
+
+
+            // --- Get Carried Over Balance and Sum Previous Balance Payments ---
+             // Use the carried over balance which was potentially just updated above
+             const carriedOverBalance = Number(currentMonthData.carriedOverBalance) || 0;
+
+             let totalPreviousBalancePayments = 0;
+             if (Array.isArray(currentMonthData.previousBalancePayments)) {
+                  currentMonthData.previousBalancePayments.forEach(payment => {
+                       if(payment && typeof payment === 'object') { // Basic validation
+                           totalPreviousBalancePayments += Number(payment.amount) || 0;
+                       }
+                  });
+             }
+            // --- End Get Carried Over Balance and Payments ---
+
+
+            // --- Calculate Final Totals including Carried Over Balance and ALL Received Amounts ---
+            const totalAmountOwed = currentPeriodGrossTotal + carriedOverBalance; // Total money owed before considering payments
+
+            // Total Received is the sum of daily received amounts AND payments towards previous balance
+            const totalAllReceived = currentPeriodTotalDailyReceived + totalPreviousBalancePayments;
+
+            const finalBalanceDue = totalAmountOwed - totalAllReceived; // Final remaining balance
+
+
+            // Round final amounts for display
+            const currentPeriodGrossTotalRounded = parseFloat(currentPeriodGrossTotal.toFixed(2));
+             const carriedOverBalanceRounded = parseFloat(carriedOverBalance.toFixed(2));
+             const totalAmountOwedRounded = parseFloat(totalAmountOwed.toFixed(2));
+             const currentPeriodTotalDailyReceivedRounded = parseFloat(currentPeriodTotalDailyReceived.toFixed(2));
+             const totalPreviousBalancePaymentsRounded = parseFloat(totalPreviousBalancePayments.toFixed(2));
+             const totalAllReceivedRounded = parseFloat(totalAllReceived.toFixed(2));
+            const finalBalanceDueRounded = parseFloat(finalBalanceDue.toFixed(2));
+
+            // Store final balance for the report footer
+            finalBalanceForReport = finalBalanceDueRounded; // <-- Storing final balance here
+
+            summary.innerHTML = `
+                <h3>Report for ${currentUser} - ${summaryTitle}</h3>
+                <p>Attendance: ${currentPeriodTotalPresent} days × ${rate.toFixed(2)} = ${currentPeriodHazriTotal.toFixed(2)}</p>
+                <p>Overtime: ${currentPeriodTotalOvertimeHours} hours → ${currentPeriodOvertimeAmount.toFixed(2)} (${overtimeHoursPerDay} hours equals 1 Attendance Rate)</p>
+                <p>Rent: ${currentPeriodTotalRent.toFixed(2)}</p>
+                <p>Food: ${currentPeriodTotalFood.toFixed(2)}</p>
+                <p>Current Period Gross Total: ${currentPeriodGrossTotalRounded.toFixed(2)}</p>
+                 <p><strong>Carried Over Balance from Previous Month: ${carriedOverBalanceRounded.toFixed(2)}</strong></p>
+                 <p><strong>Total Amount Owed (Gross + Carried Over Balance): ${totalAmountOwedRounded.toFixed(2)}</strong></p>
+                 <hr> <p>Total Received (Daily Entries this Period): ${currentPeriodTotalDailyReceivedRounded.toFixed(2)}</p>
+                 <p>Total Received (Towards Previous Balance): ${totalPreviousBalancePaymentsRounded.toFixed(2)}</p>
+                 <p><strong>Total ALL Received (This Period): ${totalAllReceivedRounded.toFixed(2)}</strong></p>
+                 <hr> <p><strong>Final Balance Due: ${finalBalanceDueRounded.toFixed(2)}</strong></p> `;
+
+            // Clear footer area if summary is generated but not shared yet
+             const footerDiv = document.getElementById('reportFooter');
+             if(footerDiv) footerDiv.textContent = '';
+
+            // Set the active report type after generating summary
+            activeReportType = calcType;
+
+        }
+        // --- End showSummary function ---
+
+
+        async function shareReport() {
+            const reportArea = document.getElementById('reportArea');
+            const summaryDiv = document.getElementById('summarySection');
+            const footerDiv = document.getElementById('reportFooter');
+             const paymentsSection = document.getElementById('previousBalancePaymentsSection'); // Get payments section
+            const table = document.querySelector('#tableContainer table'); // Get the table element
+            const tbodyRows = table ? table.querySelectorAll('tbody tr') : []; // Get all rows in tbody
+
+
+            if (!summaryDiv || !summaryDiv.innerText || summaryDiv.innerText.trim() === "" || summaryDiv.innerText.includes("Please select a user")) {
+                alert("Please generate a report first by clicking one of the 'View Report' buttons.");
+                return;
+            }
+            if (!currentUser || !currentlyViewedMonth || !table) { // Check if table exists
+                 alert("Cannot generate report image without a selected user, month, or table data.");
+                 return;
+            }
+
+            // --- Determine which rows to hide based on activeReportType ---
+            let startDay = 1;
+            const [year, monthIndexBase0] = currentlyViewedMonth.split('-').map(Number);
+            const totalDaysInCurrentMonth = getDaysInMonth(year, monthIndexBase0);
+            let endDay = totalDaysInCurrentMonth; // Default to full month
+
+
+            if (activeReportType === 'firstHalfCurrent') {
+                endDay = Math.min(15, totalDaysInCurrentMonth); // Ensure endDay doesn't exceed actual days in month
+            } else if (activeReportType === 'afterFifteenth') {
+                startDay = 16;
+            }
+
+            const hiddenRows = []; // Array to store rows that were hidden
+
+            // Only hide if not full month report and rows exist
+            if (activeReportType !== 'fullMonth' && tbodyRows.length > 0) {
+                tbodyRows.forEach(row => {
+                    const dateCell = row.querySelector('td:first-child');
+                    if (dateCell && dateCell.textContent) {
+                         const dateParts = dateCell.textContent.split('/');
+                         const day = parseInt(dateParts[0]);
+
+                         // Hide if the day is outside the range (careful with inclusive/exclusive)
+                         if (!isNaN(day) && (day < startDay || day > endDay)) {
+                              row.style.display = 'none'; // Hide the row
+                              hiddenRows.push(row); // Add to hidden rows list
+                         }
+                    }
+                });
+                 // Add a small delay to allow display changes to render
+                 await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            // --- End Determine which rows to hide ---
+
+
+            // Temporarily hide the payment form and delete buttons during capture
+            const addPaymentForm = document.getElementById('addPaymentForm');
+            const deleteButtons = reportArea.querySelectorAll('.delete-payment-btn');
+            let originalAddPaymentFormDisplay = null;
+            let originalDeleteButtonDisplays = [];
+
+            if (addPaymentForm) {
+                 originalAddPaymentFormDisplay = addPaymentForm.style.display;
+                 addPaymentForm.style.display = 'none';
+            }
+             deleteButtons.forEach(btn => {
+                 originalDeleteButtonDisplays.push(btn.style.display);
+                 btn.style.display = 'none';
+             });
+
+            // Temporarily hide the scrollbar during rendering
+            const tableWrapper = reportArea.querySelector('.table-responsive');
+            let originalOverflowX = null;
+            if(tableWrapper) {
+                originalOverflowX = tableWrapper.style.overflowX;
+                tableWrapper.style.overflowX = 'hidden';
+            }
+
+            // --- Add Footer Text BEFORE capturing ---
+            if (footerDiv) {
+                 const now = new Date();
+                 const formatter = new Intl.DateTimeFormat(navigator.language, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                 });
+                 const formattedDateTime = formatter.format(now);
+
+                 let reportPeriodText = '';
+                 if(activeReportType === 'firstHalfCurrent') reportPeriodText = ' (First 15 Days)';
+                 else if(activeReportType === 'afterFifteenth') reportPeriodText = ' (After 15th)';
+                 else reportPeriodText = ' (Full Month)';
+
+
+                // Add the final balance to the footer text on a new line
+                const footerText = `Report for ${currentUser} (${currentlyViewedMonth}${reportPeriodText}) - Generated on ${formattedDateTime}\nFinal Balance Due: ${finalBalanceForReport.toFixed(2)}`;
+                footerDiv.textContent = footerText;
+
+                // Increased delay slightly for footer to render - INCREASED HERE
+                 await new Promise(resolve => setTimeout(resolve, 500)); // <-- Delay increased to 500ms
+            }
+            // --- End Add Footer Text ---
+
+             let canvas = null;
+
+            try {
+                canvas = await html2canvas(reportArea, {
+                    scale: 2,
+                    logging: false,
+                    useCORS: true,
+                    backgroundColor: '#ffffff',
+                });
+
+                canvas.toBlob(async function(blob) {
+                    // --- Restore hidden elements and scrollbar AFTER blob is created ---
+                    if (footerDiv) {
+                        footerDiv.textContent = ''; // Clear the entire footer
+                    }
+                    if (addPaymentForm && originalAddPaymentFormDisplay !== null) {
+                         addPaymentForm.style.display = originalAddPaymentFormDisplay;
+                    }
+                     deleteButtons.forEach((btn, index) => {
+                         btn.style.display = originalDeleteButtonDisplays[index];
+                     });
+                    if(tableWrapper && originalOverflowX !== null) {
+                        tableWrapper.style.overflowX = originalOverflowX;
+                    }
+
+                    // --- Restore hidden table rows ---
+                    hiddenRows.forEach(row => {
+                        row.style.display = ''; // Show the row again
+                    });
+                    // --- End Restore hidden table rows ---
+
+
+                    if (!blob) {
+                         console.error('Canvas to Blob conversion failed.');
+                         alert('Could not generate report image.');
+                         return;
+                    }
+
+                    const file = new File([blob], `attendance_report_${currentUser}_${currentlyViewedMonth}_${activeReportType}.png`, { type: 'image/png' }); // Added activeReportType to filename
+
+                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                        try {
+                            await navigator.share({
+                                files: [file],
+                                title: `Attendance Report for ${currentUser} (${currentlyViewedMonth}${activeReportType === 'firstHalfCurrent' ? ' First 15 Days' : activeReportType === 'afterFifteenth' ? ' After 15th' : ' Full Month'})`,
+                                text: `Attendance and expense report image for ${currentUser} for ${currentlyViewedMonth}${activeReportType === 'firstHalfCurrent' ? ' (First 15 Days)' : activeReportType === 'afterFifteenth' ? ' (After 15th)' : ' (Full Month)'}.\nFinal Balance Due: ${finalBalanceForReport.toFixed(2)}` // Added final balance to share text
+                            });
+                            console.log('Report image shared successfully!');
+                        } catch (error) {
+                            if (error.name !== 'AbortError') {
+                                 console.error('Web Share failed:', error);
+                                  alert("Sharing failed directly. Report image downloaded instead.");
+                                   downloadBlob(blob, file.name);
+                            } else {
+                                 console.log('Web Share cancelled by user.');
+                            }
+                        }
+                    } else {
+                        console.log('Web Share not supported or cannot share files, initiating download.');
+                         downloadBlob(blob, file.name);
+                         alert("Report image generated. It should be downloaded to your device.");
+                    }
+                }, 'image/png', 0.9);
+
+            } catch (error) {
+                 // Restore hidden elements, scrollbar, and table rows in case of error
+                 if (addPaymentForm && originalAddPaymentFormDisplay !== null) {
+                     addPaymentForm.style.display = originalAddPaymentFormDisplay;
+                 }
+                  deleteButtons.forEach((btn, index) => {
+                      btn.style.display = originalDeleteButtonDisplays[index];
+                  });
+                 if(tableWrapper && originalOverflowX !== null) {
+                     tableWrapper.style.overflowX = originalOverflowX;
+                 }
+                 if (footerDiv) {
+                     footerDiv.textContent = ''; // Clear the entire footer
+                 }
+                  hiddenRows.forEach(row => {
+                     row.style.display = ''; // Show the row again
+                 });
+
+                 console.error('Error generating report image with html2canvas:', error);
+                 alert('Could not generate report image.');
+            }
+            // No need for finally here as restore is in then/catch and inside catch itself
+        }
+
+        // Helper function to trigger download
+        function downloadBlob(blob, filename) {
+             const url = URL.createObjectURL(blob);
+             const a = document.createElement('a');
+             a.href = url;
+             a.download = filename;
+             document.body.appendChild(a);
+             a.click();
+             document.body.removeChild(a);
+             URL.revokeObjectURL(url);
+        }
+
+
+        function getCurrentMonth() {
+            const d = new Date();
+            return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
+
+         function getDaysInMonth(year, monthIndex) {
+             return new Date(year, monthIndex + 1, 0).getDate();
+         }
+
+        // Load data on initial page load
+        loadData();
+
+
+         // Optional: Add a function to clear all data (for testing)
+         /*
+         function clearAllData() {
+             if(confirm("Are you sure you want to delete ALL user data? This action cannot be undone.")) {
+                 localStorage.removeItem('attendanceData');
+                 localStorage.removeItem('lastSelectedUser');
+                 data = {};
+                 currentUser = null;
+                 currentlyViewedMonth = null;
+                 renderUserTabs();
+                 document.getElementById("userControl").style.display = "none";
+                 document.getElementById("tableContainer").innerHTML = "";
+                 document.getElementById("summarySection").innerHTML = "";
+                 document.getElementById('previousBalancePaymentsSection').style.display = 'none'; // Hide payments section
+                 const footerDiv = document.getElementById('reportFooter');
+                 if(footerDiv) footerDiv.textContent = '';
+                 document.getElementById("newUserName").value = "";
+                 alert("All data has been cleared.");
+             }
+         }
+         */
+
+    </script>
+
+</body>
+</html>
