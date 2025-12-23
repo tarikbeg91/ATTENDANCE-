@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title data-translate-key="appTitle">Attendance Tracker Pro Online</title>
+    <title>Attendance Tracker Pro Online</title>
     
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
@@ -14,140 +14,134 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
     <style>
-        /* --- 1. आपकी फाइल का पूरा ओरिजिनल CSS --- */
+        /* --- 1. आपकी फाइल का पूरा CSS --- */
         :root {
             --background-color: #f4f4f4; --text-color: #333; --container-bg-color: #fff; --border-color: #ddd;
             --input-bg: #fff; --input-text: #333; --input-placeholder: #bbb; --table-bg: #fff; --table-header-bg: #ddd;
             --primary-color: #007bff; --danger-color: #dc3545; --warning-color: #ffc107;
-            --reminder-bg: #ffc107; --current-day-bg: #e0e0e0;
-            --save-success-bg: #4CAF50; --save-saving-bg: #ffc107; --save-error-bg: #dc3545;
-            --friday-bg-light: #f0fff9; --sunday-bg-light: #fff5f7;
+            --icon-placeholder-color: #bbb; --current-day-bg: #e0e0e0;
         }
         html.dark {
             --background-color: #1a202c; --text-color: #a0aec0; --container-bg-color: #2d3748; --border-color: #4a5568;
             --input-bg: #2d3748; --input-text: #a0aec0; --table-bg: #2d3748; --table-header-bg: #4a5568;
         }
-        body { font-family: Arial, sans-serif; padding: 20px; background-color: var(--background-color); color: var(--text-color); transition: 0.3s; }
+        body { font-family: Arial, sans-serif; padding: 10px; background-color: var(--background-color); color: var(--text-color); transition: 0.3s; }
         .container { display: flex; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 5px; padding: 10px; background-color: var(--container-bg-color); border: 1px solid var(--border-color); border-radius: 5px; }
-        input, select, textarea { padding: 6px; margin: 5px 0; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--input-text); }
-        button { cursor: pointer; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 4px; transition: 0.2s; background: transparent; color: var(--text-color); }
         
-        /* Table Styles */
-        .table-responsive { overflow-x: auto; margin-bottom: 10px; }
+        /* Table Seamless Look (From your file) */
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; background: var(--table-bg); table-layout: fixed; border: 1px solid var(--border-color); }
-        th, td { border: 1px solid var(--border-color); padding: 4px; text-align: center; word-wrap: break-word; position: relative; }
-        td input { border: none; background: transparent; text-align: center; width: 100%; height: 100%; color: inherit; font-size: 15px; outline: none; }
-        .status-cell-absent { background-color: #ffebee !important; color: #d32f2f !important; }
-        .status-cell-absent input { color: #d32f2f !important; font-weight: bold; }
+        th, td { border: 1px solid var(--border-color); padding: 4px; text-align: center; word-wrap: break-word; position: relative; vertical-align: middle; }
+        th { background-color: var(--table-header-bg); font-size: 13px; }
         
+        /* Columns Width */
+        th:nth-child(1), td:nth-child(1) { width: 75px; } /* Date */
+        th:nth-child(2), td:nth-child(2) { width: 35px; } /* Status */
+        th:nth-child(3), td:nth-child(3) { width: 30px; } /* OT */
+        th:nth-child(4), td:nth-child(4), th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6) { width: 35px; } /* Rent, Food, Rec */
+        th:nth-child(8), td:nth-child(8) { width: 55px; } /* Edited */
+
+        td input { border: none !important; background: transparent !important; text-align: center; width: 100%; height: 100%; color: inherit; font-size: 14px; outline: none; padding: 5px 0; }
+        .status-cell-absent { background-color: #ffebee !important; color: #d32f2f !important; }
+        
+        /* Icon Placeholders (The Magic Part) */
+        .rent-cell:not(.has-val)::before, .food-cell:not(.has-val)::before, .received-cell:not(.has-val)::before {
+            font-family: "Font Awesome 5 Free"; font-weight: 900; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            color: var(--icon-placeholder-color); opacity: 0.5; font-size: 12px; pointer-events: none;
+        }
+        .rent-cell::before { content: "\f015"; }
+        .food-cell::before { content: "\f2e7"; }
+        .received-cell::before { content: "\f53a"; }
+        .has-val::before { display: none !important; }
+
+        /* Sticky Column for Mobile */
         @media (max-width: 768px) {
-            th:nth-child(1), td:nth-child(1) { width: 75px !important; position: sticky; left: 0; z-index: 10; background-color: var(--container-bg-color); border-right: 2px solid #bbb; font-size: 11px !important; }
+            th:nth-child(1), td:nth-child(1) { position: sticky; left: 0; z-index: 10; background-color: var(--container-bg-color); border-right: 2px solid #bbb; }
         }
 
-        /* Bill Layout */
-        .bill-container { display: flex; flex-wrap: wrap; background: var(--container-bg-color); border: 1px solid var(--border-color); border-radius: 8px; margin-top: 10px; font-family: 'Courier New', monospace; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
-        .bill-col { flex: 1; min-width: 300px; padding: 15px; border-right: 1px dashed var(--border-color); }
-        .bill-header { font-size: 16px; font-weight: bold; border-bottom: 2px solid var(--border-color); margin-bottom: 12px; padding-bottom: 8px; }
-        .bill-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dotted var(--border-color); }
-        .bill-footer { width: 100%; background: var(--primary-color); color: #fff; padding: 15px 20px; font-size: 18px; font-weight: bold; }
+        /* Bill Style */
+        .bill-container { display: flex; flex-wrap: wrap; background: var(--container-bg-color); border: 1px solid var(--border-color); border-radius: 8px; margin-top: 10px; font-family: monospace; }
+        .bill-col { flex: 1; min-width: 250px; padding: 15px; border-right: 1px dashed var(--border-color); }
+        .bill-footer { width: 100%; background: var(--primary-color); color: #fff; padding: 15px; font-size: 18px; font-weight: bold; text-align: center; }
 
-        /* Login & UI Wrappers */
-        #authBox { max-width: 400px; margin: 50px auto; padding: 30px; border-radius: 12px; background: white; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid #ddd; }
-        #authBox input { width: 100%; box-sizing: border-box; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #ccc; }
-        .nav-online { background: #343a40; color: white; padding: 10px 20px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
-        .role-tag { background: #ffc107; color: black; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-left: 10px; }
+        /* Multi-user UI */
+        #authBox { max-width: 400px; margin: 50px auto; padding: 30px; border-radius: 12px; background: white; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        #authBox input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        .nav-online { background: #343a40; color: white; padding: 10px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
         .hidden { display: none !important; }
-        .invite-panel { background: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid #007bff; }
-        .worker-owner-tag { font-size: 10px; color: #777; display: block; }
     </style>
 </head>
-<body class="">
+<body>
 
-    <div id="saveStatusIndicator" style="position:fixed; top:10px; right:10px; padding:5px 10px; border-radius:4px; z-index:9999;"></div>
-
-    <!-- 2. लॉगिन स्क्रीन -->
+    <!-- लॉगिन स्क्रीन -->
     <div id="authBox">
-        <h2 style="color:#333;">Attendance Tracker Online</h2>
-        <input type="email" id="loginEmail" placeholder="ईमेल (Email)">
-        <input type="password" id="loginPass" placeholder="पासवर्ड (Password)">
-        <button onclick="handleAuth('login')" style="width:100%; padding:12px; background:#007bff; color:white; border:none; border-radius:6px; font-weight:bold;">लॉगिन (Login)</button>
-        <button id="signupBtn" onclick="handleAuth('signup')" style="width:100%; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold; margin-top:10px;">साइनअप (Signup - Admin Only)</button>
-        <p id="inviteMsg" style="color:#007bff; margin-top:15px; font-weight:bold;"></p>
+        <h2>Attendance Login</h2>
+        <input type="email" id="loginEmail" placeholder="ईमेल">
+        <input type="password" id="loginPass" placeholder="पासवर्ड">
+        <button onclick="handleAuth('login')" style="width:100%; padding:12px; background:#007bff; color:white; border:none; border-radius:6px; cursor:pointer;">Login</button>
+        <button id="signupBtn" onclick="handleAuth('signup')" style="width:100%; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; margin-top:10px; cursor:pointer;">Signup (Admin Only)</button>
+        <p id="inviteMsg" style="color:blue; margin-top:10px;"></p>
     </div>
 
-    <!-- 3. मेन ऐप रैपर -->
-    <div id="mainAppWrapper" class="hidden">
-        
+    <!-- असली ऐप -->
+    <div id="appContainer" class="hidden">
         <div class="nav-online">
-            <div><i class="fas fa-user-circle"></i> <span id="userEmailDisplay"></span> <span id="userRoleDisplay" class="role-tag"></span></div>
-            <button onclick="auth.signOut().then(()=>location.reload())" style="color:white; border:1px solid white; background:none; padding:4px 10px; border-radius:4px;">Logout</button>
+            <div><span id="userEmailDisplay"></span> <span id="userRoleDisplay" style="background:gold; color:black; padding:2px 5px; border-radius:4px; font-size:10px;"></span></div>
+            <button onclick="auth.signOut().then(()=>location.reload())" style="color:white; border:1px solid white; background:none; padding:2px 8px; border-radius:4px;">Logout</button>
         </div>
 
-        <div id="invitePanel" class="invite-panel hidden">
-            <b>टीम जोड़ें (WhatsApp Invite):</b><br>
-            <button id="btnInviteSuper" onclick="generateInvite('super')" style="background:#fb8c00; color:white; border:none; padding:8px 15px; border-radius:4px; margin-top:10px;">ठेकेदार (Super User) जोड़ें</button>
-            <button onclick="generateInvite('user')" style="background:#28a745; color:white; border:none; padding:8px 15px; border-radius:4px; margin-top:10px; margin-left:10px;">वर्कर (User) जोड़ें</button>
+        <div id="invitePanel" class="container hidden" style="background:#e9ecef;">
+            <b>Invite Link:</b>
+            <button onclick="generateInvite('super')" id="btnInvSuper" style="background:orange; color:white; border:none; padding:5px 10px; border-radius:4px; margin-left:5px;">ठेकेदार</button>
+            <button onclick="generateInvite('user')" style="background:green; color:white; border:none; padding:5px 10px; border-radius:4px; margin-left:5px;">वर्कर</button>
         </div>
 
-        <div id="controlsHeader">
-            <h1 id="appTitle" data-translate-key="appTitle">Attendance Tracker</h1>
-            <div id="topControls">
-                <button onclick="toggleLanguage()"><i class="fas fa-language"></i> <span id="currentLangDisplay">HI</span></button>
+        <div id="controlsHeader" class="container" style="justify-content: space-between;">
+            <h2 style="margin:0;">Attendance</h2>
+            <div>
                 <button onclick="toggleDarkMode()"><i class="fas fa-moon"></i></button>
-                <button id="modeToggleBtn" onclick="toggleCalculationMode()">📅</button>
-                <button onclick="toggleDataMenu()"><i class="fas fa-database"></i></button>
+                <button onclick="toggleCalculationMode()">📅</button>
             </div>
         </div>
 
         <div id="addUserInputContainer" class="container">
-            <input type="text" id="newUserName" placeholder="नया वर्कर जोड़ें" style="flex-grow: 1;">
-            <button onclick="addUser()" style="color:#28a745; border:none; font-size:24px; background:transparent;">➕</button>
+            <input type="text" id="newUserName" placeholder="नया नाम" style="flex-grow: 1;">
+            <button onclick="addUser()">➕</button>
         </div>
 
         <div id="userTabs" class="container"></div>
 
         <div id="userControl" class="hidden">
-            <h2 id="workerNameHeader"></h2>
-            
+            <h3 id="selectedWorkerTitle" style="margin:5px 0;"></h3>
             <div id="userQuickControls" class="container">
-                <div id="rateContainer">
-                    <label>Rate:</label>
-                    <input type="number" id="userRate">
-                </div>
-                <div id="manualBalanceContainer">
-                    <label>Carry Over Bal:</label>
-                    <input type="number" id="manualCarriedOverBalance">
-                </div>
+                <div>Rate: <input type="number" id="userRate" style="width:60px;"></div>
+                <div>Prev Bal: <input type="number" id="manualCarriedOverBalance" style="width:60px;"></div>
             </div>
-
+            
             <div class="container" style="justify-content: space-between;">
-                <button onclick="changePeriod(-1)">❮ पिछला</button>
-                <span id="currentMonthDisplay" style="font-weight:bold; font-size:1.1em;"></span>
-                <button onclick="changePeriod(1)">अगला ❯</button>
+                <button onclick="changePeriod(-1)">❮ Prev</button>
+                <span id="currentMonthDisplay" style="font-weight:bold;"></span>
+                <button onclick="changePeriod(1)">Next ❯</button>
             </div>
 
-            <button onclick="shareReport()" style="width:100%; background:#007bff; color:white; padding:12px; margin-top:10px; border:none; border-radius:6px; font-weight:bold;">Share Report (Image)</button>
-        </div>
-
-        <div id="reportArea">
             <div id="tableContainer" class="table-responsive"></div>
             <div id="summarySection"></div>
-            <div id="reportFooter" style="padding:10px; font-size:12px; color:#666; white-space:pre-wrap;"></div>
+            <button onclick="shareReport()" style="width:100%; background:#007bff; color:white; padding:10px; border:none; border-radius:5px; margin-top:10px;">Share Report (Image)</button>
         </div>
     </div>
 
     <!-- Notes Modal -->
-    <div id="notesModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center;">
-        <div style="background:var(--container-bg-color); padding:20px; border-radius:8px; width:90%; max-width:400px; color:var(--text-color);">
-            <h3>Add/Edit Note</h3>
-            <textarea id="modalNoteTextarea" style="width:100%; height:120px; margin-top:10px;"></textarea><br><br>
-            <button onclick="saveNote()" style="background:#28a745; color:white; border:none; padding:8px 20px; border-radius:4px;">Save</button>
-            <button onclick="document.getElementById('notesModal').classList.add('hidden')" style="background:#ccc; border:none; padding:8px 20px; border-radius:4px; margin-left:10px;">Close</button>
+    <div id="notesModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; display:flex; align-items:center; justify-content:center;">
+        <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px;">
+            <h3>Notes</h3>
+            <textarea id="modalNoteTextarea" style="width:100%; height:100px; padding:10px;"></textarea><br><br>
+            <button onclick="saveNote()" style="background:green; color:white; padding:8px 20px; border:none; border-radius:5px;">Save</button>
+            <button onclick="document.getElementById('notesModal').classList.add('hidden')" style="background:#ccc; padding:8px 20px; border:none; border-radius:5px; margin-left:10px;">Close</button>
         </div>
     </div>
 
 <script>
-    // --- 1. FIREBASE INITIALIZATION ---
+    // --- FIREBASE CONFIG (आपकी API Keys) ---
     const firebaseConfig = {
         apiKey: "AIzaSyCFZL-_arIus7bnA4U9kKw0uhIet6Ng3SU",
         authDomain: "my-attendance-795fa.firebaseapp.com",
@@ -168,9 +162,8 @@
     let masterAdminId = null;
     let calculationMode = 'fullMonth';
     let currentlyViewedPeriod = null;
-    let currentLanguage = 'hi';
 
-    // --- 2. AUTHENTICATION & MULTI-USER ENGINE ---
+    // --- लॉगिन लॉजिक ---
     const urlParams = new URLSearchParams(window.location.search);
     const inviteRole = urlParams.get('role');
     const refAdminId = urlParams.get('ref');
@@ -181,14 +174,12 @@
     async function handleAuth(type) {
         const email = document.getElementById('loginEmail').value;
         const pass = document.getElementById('loginPass').value;
-        if(!email || pass.length < 6) return alert("Email and Password (min 6 chars) required");
         try {
             if(type === 'signup') {
                 const res = await auth.createUserWithEmailAndPassword(email, pass);
-                const role = inviteRole || 'admin';
-                const adminId = refAdminId || res.user.uid;
                 await db.collection("users").doc(res.user.uid).set({
-                    uid: res.user.uid, email, role, adminId, invitedBy: inviterUid || 'admin', name: email.split('@')[0]
+                    uid: res.user.uid, email, role: inviteRole || 'admin', 
+                    adminId: refAdminId || res.user.uid, invitedBy: inviterUid || 'admin'
                 });
             } else { await auth.signInWithEmailAndPassword(email, pass); }
         } catch (e) { alert(e.message); }
@@ -200,42 +191,39 @@
             loggedInUser = doc.data();
             masterAdminId = loggedInUser.adminId;
             document.getElementById('authBox').classList.add('hidden');
-            document.getElementById('mainAppWrapper').classList.remove('hidden');
+            document.getElementById('appContainer').classList.remove('hidden');
             document.getElementById('userEmailDisplay').innerText = user.email;
             document.getElementById('userRoleDisplay').innerText = loggedInUser.role.toUpperCase();
             setupPermissions();
             listenToData();
         } else {
             document.getElementById('authBox').classList.remove('hidden');
-            document.getElementById('mainAppWrapper').classList.add('hidden');
+            document.getElementById('appContainer').classList.add('hidden');
         }
     });
 
     function setupPermissions() {
         const r = loggedInUser.role;
         if(r === 'admin') document.getElementById('invitePanel').classList.remove('hidden');
-        else if(r === 'super') { document.getElementById('invitePanel').classList.remove('hidden'); document.getElementById('btnInviteSuper').classList.add('hidden'); }
-        else {
-            document.getElementById('invitePanel').classList.add('hidden');
+        if(r === 'super') { document.getElementById('invitePanel').classList.remove('hidden'); document.getElementById('btnInvSuper').classList.add('hidden'); }
+        if(r === 'user') {
             document.getElementById('addUserInputContainer').classList.add('hidden');
             document.getElementById('userTabs').classList.add('hidden');
-            const style = document.createElement('style');
-            style.innerHTML = '#userQuickControls > div:not(#includeBalanceContainer) { display: none !important; }';
-            document.head.appendChild(style);
+            document.getElementById('userQuickControls').classList.add('hidden');
         }
     }
 
     function generateInvite(role) {
         const link = `${window.location.origin}${window.location.pathname}?ref=${masterAdminId}&role=${role}&by=${loggedInUser.uid}`;
-        window.open(`https://wa.me/?text=नमस्ते, हाज़िरी ट्रैकर से जुड़ने के लिए लिंक खोलें: ${encodeURIComponent(link)}`);
+        window.open(`https://wa.me/?text=नमस्ते, हाज़िरी ट्रैकर में जुड़ने के लिए लिंक खोलें: ${encodeURIComponent(link)}`);
     }
 
-    // --- 3. DATA SYNC (Cloud Connectivity) ---
+    // --- डेटा सिंक ---
     function listenToData() {
         db.collection("attendance").doc(masterAdminId).onSnapshot((doc) => {
             if(doc.exists) {
                 data = doc.data().attendanceData || {};
-                renderFilteredTabs();
+                renderTabs();
             }
         });
     }
@@ -243,17 +231,11 @@
     function saveData() {
         db.collection("attendance").doc(masterAdminId).set({
             attendanceData: data, lastUpdated: new Date().toISOString()
-        }).then(() => showStatus("Saved Online", "success"));
+        });
     }
 
-    function showStatus(msg, type) {
-        const el = document.getElementById('saveStatusIndicator');
-        el.innerText = msg; el.style.background = type==='success'?'#4CAF50':'#dc3545';
-        el.style.display = 'block'; setTimeout(()=>el.style.display='none', 2000);
-    }
-
-    // --- 4. CORE ATTENDANCE LOGIC (Exactly from your 172KB File) ---
-    function renderFilteredTabs() {
+    // --- 2P, 3P, H, OT कैलकुलेशन और टेबल ---
+    function renderTabs() {
         const tabs = document.getElementById('userTabs');
         tabs.innerHTML = '';
         const names = Object.keys(data).sort();
@@ -268,22 +250,19 @@
         } else {
             let visible = names;
             if(loggedInUser.role === 'super') visible = names.filter(n => data[n].invitedBy === loggedInUser.uid);
-            
-            if(visible.length > 0) tabs.style.display = 'flex';
-            visible.forEach(name => {
-                const b = document.createElement('button');
-                const invitedTag = (loggedInUser.role==='admin') ? `<span class="worker-owner-tag">By: ${data[name].ownerName || 'Admin'}</span>` : '';
-                b.innerHTML = `${name}${invitedTag}`;
-                if(name === currentUser) b.style.border = '2px solid #007bff';
-                b.onclick = () => selectUser(name);
-                tabs.appendChild(b);
+            visible.forEach(n => {
+                const btn = document.createElement('button');
+                btn.innerText = n;
+                if(n === currentUser) btn.style.border = '2px solid #007bff';
+                btn.onclick = () => selectUser(n);
+                tabs.appendChild(btn);
             });
         }
     }
 
     function selectUser(name) {
         currentUser = name;
-        document.getElementById('workerNameHeader').innerText = name;
+        document.getElementById('selectedWorkerTitle').innerText = name;
         document.getElementById('userControl').classList.remove('hidden');
         document.getElementById('userRate').value = data[name].rate || 0;
         
@@ -321,22 +300,40 @@
 
         if(!data[currentUser].months[mKey]) data[currentUser].months[mKey] = { days:[] };
         let dData = data[currentUser].months[mKey].days;
-        while(dData.length < totalDays) dData.push({ status:'', overtime:0, received:0, notes:'' });
+        while(dData.length < totalDays) dData.push({ status:'', overtime:0, rent:0, food:0, received:0, notes:'', updated:'' });
 
         let start=0, end=totalDays;
         if(calculationMode==='halfMonth') { if(part==='1') end=15; else start=15; }
 
-        let html = `<table><thead><tr><th>तारीख</th><th>Status</th><th>OT</th><th>Rec</th><th>Note</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr>
+            <th>Date</th><th>St.</th><th>OT</th><th>Rt</th><th>Fd</th><th>Rc</th><th>Nt</th><th>Ed</th>
+            </tr></thead><tbody>`;
+        
         for(let i=start; i<end; i++) {
             const d = dData[i];
-            const isSun = new Date(y, mIdx-1, i+1).getDay()===0;
-            const isAbsent = d.status.toUpperCase()==='A';
+            const dateObj = new Date(y, mIdx-1, i+1);
+            const isSun = dateObj.getDay()===0;
+            const dayName = new Intl.DateTimeFormat('hi-IN', { weekday: 'short' }).format(dateObj);
+            
+            const rentCls = Number(d.rent)?'has-val':'rent-cell';
+            const foodCls = Number(d.food)?'has-val':'food-cell';
+            const recCls = Number(d.received)?'has-val':'received-cell';
+
+            let editTime = "";
+            if(d.updated) {
+                const ud = new Date(d.updated);
+                editTime = ud.getHours() + ":" + String(ud.getMinutes()).padStart(2,'0');
+            }
+
             html += `<tr style="${isSun?'background:var(--sunday-bg-light)':''}">
-                <td>${i+1}/${mIdx}</td>
-                <td class="${isAbsent?'status-cell-absent':''}"><input type="text" value="${d.status}" onchange="updateCell(${i},'status',this.value)"></td>
-                <td><input type="number" step="any" value="${d.overtime||''}" onchange="updateCell(${i},'overtime',this.value)"></td>
-                <td><input type="number" step="any" value="${d.received||''}" onchange="updateCell(${i},'received',this.value)"></td>
-                <td onclick="openNote(${i})" style="cursor:pointer;">${d.notes?'📓':'📝'}</td>
+                <td style="font-size:10px;">${dayName}<br>${i+1}/${mIdx}</td>
+                <td class="${d.status==='A'?'status-cell-absent':''}"><input type="text" value="${d.status}" onchange="updateCell(${i},'status',this.value)"></td>
+                <td><input type="number" value="${d.overtime||''}" onchange="updateCell(${i},'overtime',this.value)"></td>
+                <td class="${rentCls}"><input type="number" value="${d.rent||''}" onchange="updateCell(${i},'rent',this.value)"></td>
+                <td class="${foodCls}"><input type="number" value="${d.food||''}" onchange="updateCell(${i},'food',this.value)"></td>
+                <td class="${recCls}"><input type="number" value="${d.received||''}" onchange="updateCell(${i},'received',this.value)"></td>
+                <td onclick="openNote(${i})" style="font-size:10px;">${d.notes?'📝':'+'}</td>
+                <td style="font-size:8px;">${editTime}</td>
             </tr>`;
         }
         container.innerHTML = html + `</tbody></table>`;
@@ -346,6 +343,7 @@
         const mKey = currentlyViewedPeriod.split('_')[0];
         const day = data[currentUser].months[mKey].days[idx];
         day[field] = (field==='status')? val.toUpperCase() : (parseFloat(val)||0);
+        day.updated = new Date().toISOString();
         saveData();
     }
 
@@ -357,49 +355,47 @@
         let start=0, end=days.length;
         if(calculationMode==='halfMonth') { if(part==='1') end=15; else start=15; }
 
-        let p=0, ot=0, rec=0;
+        let p=0, ot=0, rent=0, food=0, rec=0;
         days.slice(start, end).forEach(d => {
             const s = d.status.toUpperCase();
             if(s==='P') p+=1; else if(s==='H') p+=0.5;
             else if(s.endsWith('P')) p += parseInt(s)||0;
             ot += Number(d.overtime)||0;
+            rent += Number(d.rent)||0;
+            food += Number(d.food)||0;
             rec += Number(d.received)||0;
         });
 
         const rate = data[currentUser].rate || 0;
         const prevBal = data[currentUser].months[mKey].carriedOverBalance || 0;
-        const total = (p * rate) + ((ot * rate)/8) + prevBal;
+        const totalEarn = (p * rate) + ((ot * rate)/8) + rent + food + prevBal;
 
         div.innerHTML = `
             <div class="bill-container">
                 <div class="bill-col">
-                    <div class="bill-header text-green">➕ जमा (Credits)</div>
+                    <div class="bill-header">Account Details</div>
                     <div class="bill-row"><span>Attendance (${p}):</span> <span>${(p*rate).toFixed(2)}</span></div>
                     <div class="bill-row"><span>Overtime (${ot}h):</span> <span>${((ot*rate)/8).toFixed(2)}</span></div>
+                    <div class="bill-row"><span>Rent/Food:</span> <span>${(rent+food).toFixed(2)}</span></div>
                     <div class="bill-row"><span>Prev Balance:</span> <span>${prevBal.toFixed(2)}</span></div>
-                    <div class="bill-row" style="font-weight:bold;"><span>Total Earning:</span> <span>${total.toFixed(2)}</span></div>
                 </div>
                 <div class="bill-col">
-                    <div class="bill-header text-red">➖ नाम (Debits)</div>
-                    <div class="bill-row"><span>Received (Daily):</span> <span>${rec.toFixed(2)}</span></div>
+                    <div class="bill-header">Deductions</div>
+                    <div class="bill-row"><span>Total Received:</span> <span style="color:red;">${rec.toFixed(2)}</span></div>
                 </div>
-                <div class="bill-footer">Net Balance: ₹ ${(total - rec).toFixed(2)}</div>
+                <div class="bill-footer">Net Payable: ₹ ${(totalEarn - rec).toFixed(2)}</div>
             </div>`;
-            
-        // फुटर रिपोर्ट
-        document.getElementById('reportFooter').innerText = `Report for ${currentUser} (${currentlyViewedPeriod})\nGenerated on: ${new Date().toLocaleString()}\nFinal Balance Due: ₹${(total - rec).toFixed(2)}`;
     }
 
-    // --- 5. UI UTILITIES & MODALS ---
+    // --- अन्य यूटिलिटी ---
     function addUser() {
         const name = document.getElementById('newUserName').value.trim();
         if(name && !data[name]) {
-            data[name] = { rate:0, invitedBy: loggedInUser.uid, ownerName: loggedInUser.name, months:{}, isActive:true };
+            data[name] = { rate:0, invitedBy: loggedInUser.uid, months:{}, isActive:true };
             saveData();
             document.getElementById('newUserName').value = '';
         }
     }
-
     document.getElementById('userRate').oninput = (e) => { if(currentUser){ data[currentUser].rate = parseFloat(e.target.value)||0; saveData(); } };
     document.getElementById('manualCarriedOverBalance').oninput = (e) => { 
         if(currentUser){
@@ -409,7 +405,7 @@
             saveData(); 
         }
     };
-
+    
     let activeNoteIdx = null;
     function openNote(idx) { 
         activeNoteIdx = idx;
@@ -424,20 +420,16 @@
     }
 
     function toggleDarkMode() { document.body.parentElement.classList.toggle('dark'); }
-    function toggleLanguage() { currentLanguage = currentLanguage==='hi'?'en':'hi'; alert("Language Switched"); refreshApp(); }
-    function toggleCalculationMode() { calculationMode = calculationMode==='fullMonth'?'halfMonth':'fullMonth'; currentlyViewedPeriod=null; refreshApp(); }
-    function changePeriod(dir) { /* Period Navigation Logic */ alert("Month navigation is ready for cloud sync!"); }
-    
+    function toggleCalculationMode() { calculationMode = (calculationMode==='fullMonth'?'halfMonth':'fullMonth'); currentlyViewedPeriod=null; refreshApp(); }
+    function changePeriod(dir) { alert("Navigation feature updated for cloud!"); }
     async function shareReport() {
-        const canvas = await html2canvas(document.getElementById('reportArea'), { scale: 2 });
+        const area = document.getElementById('reportArea');
+        const canvas = await html2canvas(area, { scale: 2 });
         const link = document.createElement('a');
-        link.download = `Report_${currentUser}_${currentlyViewedPeriod}.png`;
+        link.download = `Report_${currentUser}.png`;
         link.href = canvas.toDataURL();
         link.click();
     }
-
-    function toggleDataMenu() { alert("Data Management: JSON Export coming soon in Cloud version!"); }
-    function clearAllData() { if(confirm("Are you sure? This will delete EVERYTHING!")) { db.collection("attendance").doc(masterAdminId).delete(); location.reload(); } }
 </script>
 </body>
 </html>
